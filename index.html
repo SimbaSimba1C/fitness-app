@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя Статистика</title>
+    <!-- Подключаем библиотеку Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Нативные переменные цветов Telegram для поддержки темной/светлой темы */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            margin: 0;
+            padding: 16px;
+        }
+        .card {
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .goal-row {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .progress-bar {
+            background-color: #ddd;
+            border-radius: 8px;
+            height: 10px;
+            width: 100%;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background-color: var(--tg-theme-button-color, #2481cc);
+            height: 100%;
+            width: 0%;
+            transition: width 0.8s ease;
+        }
+        .workout-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
+            font-size: 15px;
+        }
+        .workout-item:last-child {
+            border-bottom: none;
+        }
+        .workout-details {
+            color: var(--tg-theme-hint-color, #999);
+            font-size: 13px;
+            margin-top: 2px;
+        }
+        #loader {
+            text-align: center;
+            margin-top: 50px;
+            color: var(--tg-theme-hint-color, #999);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Экран загрузки -->
+    <div id="loader">Загрузка данных из таблицы...</div>
+
+    <!-- Основной контент (скрыт до загрузки) -->
+    <div id="content" style="display: none;">
+        
+        <!-- Блок целей -->
+        <div class="card">
+            <div class="title">Цели на неделю</div>
+            <div class="goal-row">
+                🏃 Кардио: <span id="cardio-text">0 / 150 мин</span>
+                <div class="progress-bar"><div id="cardio-bar" class="progress-fill"></div></div>
+            </div>
+            <div class="goal-row" style="margin-top: 12px;">
+                🏋️ Силовые: <span id="strength-text">0 / 2 тренировки</span>
+                <div class="progress-bar"><div id="strength-bar" class="progress-fill"></div></div>
+            </div>
+        </div>
+
+        <!-- Блок истории -->
+        <div class="card">
+            <div class="title">Последние тренировки</div>
+            <div id="workout-list"></div>
+        </div>
+        
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Разворачиваем на весь экран
+        
+        // Вставляем вашу ссылку на API
+        const API_URL = 'https://script.google.com/macros/s/AKfycbztcCHGCseFQQjsjtDOjLjNOTAYqXczKJjbBtIsdGr1pvEwr-TuJcDQ2HqIlNbBZJuq/exec';
+
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                renderData(data);
+            } catch (error) {
+                document.getElementById('loader').innerText = 'Ошибка загрузки данных';
+            }
+        }
+
+        function renderData(data) {
+            // Скрываем лоадер, показываем контент
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            // Разворачиваем массив, чтобы последние тренировки были сверху
+            const recentData = data.reverse();
+
+            // Считаем прогресс (по последним 7 записям для примера)
+            let cardioMinutes = 0;
+            let strengthCount = 0;
+            
+            recentData.slice(0, 7).forEach(row => {
+                const type = (row['Тип тренировки'] || '').toLowerCase();
+                const duration = Number(row['Длительность (мин)']) || 0;
+                
+                if (type.includes('силовы')) {
+                    strengthCount += 1;
+                } else if (type !== '') {
+                    cardioMinutes += duration;
+                }
+            });
+
+            // Обновляем шкалы прогресса
+            const cardioPercent = Math.min((cardioMinutes / 150) * 100, 100);
+            document.getElementById('cardio-text').innerText = `${cardioMinutes} / 150 мин`;
+            document.getElementById('cardio-bar').style.width = `${cardioPercent}%`;
+
+            const strengthPercent = Math.min((strengthCount / 2) * 100, 100);
+            document.getElementById('strength-text').innerText = `${strengthCount} / 2 тренировки`;
+            document.getElementById('strength-bar').style.width = `${strengthPercent}%`;
+
+            // Отрисовываем 5 последних тренировок
+            const listContainer = document.getElementById('workout-list');
+            listContainer.innerHTML = '';
+            
+            recentData.slice(0, 5).forEach(row => {
+                const date = row['Дата'] || 'Без даты';
+                const type = row['Тип тренировки'] || 'Активность';
+                const distance = row['Дистанция (км)'] ? `${row['Дистанция (км)']} км` : '';
+                const duration = row['Длительность (мин)'] ? `${row['Длительность (мин)']} мин` : '';
+                
+                // Формируем строчку "6,01 км • 48 мин"
+                const details = [distance, duration].filter(Boolean).join(' • ');
+
+                const div = document.createElement('div');
+                div.className = 'workout-item';
+                div.innerHTML = `
+                    <div>
+                        <div>${type}</div>
+                        <div class="workout-details">${date}</div>
+                    </div>
+                    <div style="font-weight: 500;">${details}</div>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        // Запускаем получение данных
+        fetchData();
+    </script>
+</body>
+</html>
