@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Моя Статистика</title>
-    <!-- Подключаем библиотеку Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Нативные переменные цветов Telegram для поддержки темной/светлой темы */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--tg-theme-bg-color, #ffffff);
@@ -68,13 +66,9 @@
 </head>
 <body>
 
-    <!-- Экран загрузки -->
     <div id="loader">Загрузка данных из таблицы...</div>
 
-    <!-- Основной контент (скрыт до загрузки) -->
     <div id="content" style="display: none;">
-        
-        <!-- Блок целей -->
         <div class="card">
             <div class="title">Цели на неделю</div>
             <div class="goal-row">
@@ -87,20 +81,17 @@
             </div>
         </div>
 
-        <!-- Блок истории -->
         <div class="card">
             <div class="title">Последние тренировки</div>
             <div id="workout-list"></div>
         </div>
-        
     </div>
 
     <script>
-        // Инициализация Telegram Web App
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
+        tg.expand();
         
-        // Вставляем вашу ссылку на API
+        // Ваш API
         const API_URL = 'https://script.google.com/macros/s/AKfycbztcCHGCseFQQjsjtDOjLjNOTAYqXczKJjbBtIsdGr1pvEwr-TuJcDQ2HqIlNbBZJuq/exec';
 
         async function fetchData() {
@@ -113,30 +104,55 @@
             }
         }
 
+        // Вспомогательная функция для превращения строки "14.08.2026" в дату
+        function parseDate(dateStr) {
+            if (!dateStr) return new Date(0);
+            const parts = dateStr.split('.');
+            if (parts.length === 3) {
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+            return new Date(0);
+        }
+
         function renderData(data) {
-            // Скрываем лоадер, показываем контент
             document.getElementById('loader').style.display = 'none';
             document.getElementById('content').style.display = 'block';
 
-            // Разворачиваем массив, чтобы последние тренировки были сверху
-            const recentData = data.reverse();
+            // 1. СОРТИРОВКА: Сначала свежие тренировки
+            data.sort((a, b) => parseDate(b['Дата']) - parseDate(a['Дата']));
 
-            // Считаем прогресс (по последним 7 записям для примера)
+            // 2. ВЫЧИСЛЕНИЕ ТЕКУЩЕЙ НЕДЕЛИ (Пн-Вс)
+            const now = new Date();
+            const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Делаем Пн=1, Вс=7
+            
+            const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
+            startOfWeek.setHours(0, 0, 0, 0);
+            
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+
+            // 3. ПОДСЧЕТ ЦЕЛЕЙ ТОЛЬКО ЗА ТЕКУЩУЮ НЕДЕЛЮ
             let cardioMinutes = 0;
             let strengthCount = 0;
             
-            recentData.slice(0, 7).forEach(row => {
-                const type = (row['Тип тренировки'] || '').toLowerCase();
-                const duration = Number(row['Длительность (мин)']) || 0;
+            data.forEach(row => {
+                const rowDate = parseDate(row['Дата']);
                 
-                if (type.includes('силовы')) {
-                    strengthCount += 1;
-                } else if (type !== '') {
-                    cardioMinutes += duration;
+                // Если тренировка входит в текущую неделю
+                if (rowDate >= startOfWeek && rowDate <= endOfWeek) {
+                    const type = (row['Тип тренировки'] || '').toLowerCase();
+                    const duration = Number(row['Длительность (мин)']) || 0;
+                    
+                    if (type.includes('силовы') || type.includes('силовая')) {
+                        strengthCount += 1;
+                    } else if (type !== '') {
+                        cardioMinutes += duration;
+                    }
                 }
             });
 
-            // Обновляем шкалы прогресса
+            // Обновляем шкалы
             const cardioPercent = Math.min((cardioMinutes / 150) * 100, 100);
             document.getElementById('cardio-text').innerText = `${cardioMinutes} / 150 мин`;
             document.getElementById('cardio-bar').style.width = `${cardioPercent}%`;
@@ -145,17 +161,16 @@
             document.getElementById('strength-text').innerText = `${strengthCount} / 2 тренировки`;
             document.getElementById('strength-bar').style.width = `${strengthPercent}%`;
 
-            // Отрисовываем 5 последних тренировок
+            // 4. ОТРИСОВКА СПИСКА (первые 5 элементов из отсортированного массива)
             const listContainer = document.getElementById('workout-list');
             listContainer.innerHTML = '';
             
-            recentData.slice(0, 5).forEach(row => {
+            data.slice(0, 5).forEach(row => {
                 const date = row['Дата'] || 'Без даты';
                 const type = row['Тип тренировки'] || 'Активность';
                 const distance = row['Дистанция (км)'] ? `${row['Дистанция (км)']} км` : '';
                 const duration = row['Длительность (мин)'] ? `${row['Длительность (мин)']} мин` : '';
                 
-                // Формируем строчку "6,01 км • 48 мин"
                 const details = [distance, duration].filter(Boolean).join(' • ');
 
                 const div = document.createElement('div');
@@ -171,7 +186,6 @@
             });
         }
 
-        // Запускаем получение данных
         fetchData();
     </script>
 </body>
