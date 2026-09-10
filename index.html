@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Моя Статистика</title>
+    <title>РњРѕСЏ РЎС‚Р°С‚РёСЃС‚РёРєР°</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
@@ -62,27 +62,55 @@
             margin-top: 50px;
             color: var(--tg-theme-hint-color, #999);
         }
+        .refresh-btn {
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 16px;
+            transition: opacity 0.2s;
+        }
+        .refresh-btn:active {
+            opacity: 0.8;
+        }
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .last-updated {
+            text-align: center;
+            font-size: 12px;
+            color: var(--tg-theme-hint-color, #999);
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
 
-    <div id="loader">Загрузка данных из таблицы...</div>
+    <div id="loader">Р—Р°РіСЂСѓР·РєР° РґР°РЅРЅС‹С… РёР· С‚Р°Р±Р»РёС†С‹...</div>
 
     <div id="content" style="display: none;">
+        <div class="last-updated" id="last-updated"></div>
+        <button class="refresh-btn" id="refresh-btn" onclick="refreshData()">рџ”„ РћР±РЅРѕРІРёС‚СЊ РґР°РЅРЅС‹Рµ</button>
+        
         <div class="card">
-            <div class="title">Цели на неделю</div>
+            <div class="title">Р¦РµР»Рё РЅР° РЅРµРґРµР»СЋ</div>
             <div class="goal-row">
-                🏃 Кардио: <span id="cardio-text">0 / 150 мин</span>
+                рџЏѓ РљР°СЂРґРёРѕ: <span id="cardio-text">0 / 150 РјРёРЅ</span>
                 <div class="progress-bar"><div id="cardio-bar" class="progress-fill"></div></div>
             </div>
             <div class="goal-row" style="margin-top: 12px;">
-                🏋️ Силовые: <span id="strength-text">0 / 2 тренировки</span>
+                рџЏ‹пёЏ РЎРёР»РѕРІС‹Рµ: <span id="strength-text">0 / 2 С‚СЂРµРЅРёСЂРѕРІРєРё</span>
                 <div class="progress-bar"><div id="strength-bar" class="progress-fill"></div></div>
             </div>
         </div>
 
         <div class="card">
-            <div class="title">Последние тренировки</div>
+            <div class="title">РџРѕСЃР»РµРґРЅРёРµ С‚СЂРµРЅРёСЂРѕРІРєРё</div>
             <div id="workout-list"></div>
         </div>
     </div>
@@ -91,20 +119,8 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
         
-        // Ваш API
-        const API_URL = 'https://script.google.com/macros/s/AKfycbztcCHGCseFQQjsjtDOjLjNOTAYqXczKJjbBtIsdGr1pvEwr-TuJcDQ2HqIlNbBZJuq/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwvHJtJp7QnXnlNcCR1zyxdm4oUqGmO9ZlFMfGpNGAQhGM9gqYNVAc2MFgv_2FQVQTA/useFunctionUrl';
 
-        async function fetchData() {
-            try {
-                const response = await fetch(API_URL);
-                const data = await response.json();
-                renderData(data);
-            } catch (error) {
-                document.getElementById('loader').innerText = 'Ошибка загрузки данных';
-            }
-        }
-
-        // Вспомогательная функция для превращения строки "14.08.2026" в дату
         function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
             const parts = dateStr.split('.');
@@ -114,16 +130,48 @@
             return new Date(0);
         }
 
+        async function fetchData() {
+            try {
+                document.getElementById('loader').style.display = 'block';
+                document.getElementById('content').style.display = 'none';
+
+                const response = await fetch(API_URL + '?t=' + Date.now());
+                const data = await response.json();
+                
+                renderData(data);
+
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                document.getElementById('last-updated').innerText = `РџРѕСЃР»РµРґРЅРµРµ РѕР±РЅРѕРІР»РµРЅРёРµ: ${timeStr}`;
+
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+            } catch (error) {
+                console.error('РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ:', error);
+                document.getElementById('loader').innerText = 'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РґР°РЅРЅС‹С…';
+            }
+        }
+
+        function refreshData() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.innerText = 'вЏі РћР±РЅРѕРІР»РµРЅРёРµ...';
+            
+            fetchData().then(() => {
+                btn.disabled = false;
+                btn.innerText = 'рџ”„ РћР±РЅРѕРІРёС‚СЊ РґР°РЅРЅС‹Рµ';
+            }).catch(err => {
+                console.error('РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ:', err);
+                btn.disabled = false;
+                btn.innerText = 'рџ”„ РћР±РЅРѕРІРёС‚СЊ РґР°РЅРЅС‹Рµ';
+            });
+        }
+
         function renderData(data) {
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('content').style.display = 'block';
+            data.sort((a, b) => parseDate(b['Р”Р°С‚Р°']) - parseDate(a['Р”Р°С‚Р°']));
 
-            // 1. СОРТИРОВКА: Сначала свежие тренировки
-            data.sort((a, b) => parseDate(b['Дата']) - parseDate(a['Дата']));
-
-            // 2. ВЫЧИСЛЕНИЕ ТЕКУЩЕЙ НЕДЕЛИ (Пн-Вс)
             const now = new Date();
-            const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Делаем Пн=1, Вс=7
+            const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
             
             const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
             startOfWeek.setHours(0, 0, 0, 0);
@@ -132,19 +180,17 @@
             endOfWeek.setDate(startOfWeek.getDate() + 6);
             endOfWeek.setHours(23, 59, 59, 999);
 
-            // 3. ПОДСЧЕТ ЦЕЛЕЙ ТОЛЬКО ЗА ТЕКУЩУЮ НЕДЕЛЮ
             let cardioMinutes = 0;
             let strengthCount = 0;
             
             data.forEach(row => {
-                const rowDate = parseDate(row['Дата']);
+                const rowDate = parseDate(row['Р”Р°С‚Р°']);
                 
-                // Если тренировка входит в текущую неделю
                 if (rowDate >= startOfWeek && rowDate <= endOfWeek) {
-                    const type = (row['Тип тренировки'] || '').toLowerCase();
-                    const duration = Number(row['Длительность (мин)']) || 0;
+                    const type = (row['РўРёРї С‚СЂРµРЅРёСЂРѕРІРєРё'] || '').toLowerCase();
+                    const duration = Number(row['Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (РјРёРЅ)']) || 0;
                     
-                    if (type.includes('силовы') || type.includes('силовая')) {
+                    if (type.includes('СЃРёР»РѕРІС‹') || type.includes('СЃРёР»РѕРІР°СЏ')) {
                         strengthCount += 1;
                     } else if (type !== '') {
                         cardioMinutes += duration;
@@ -152,26 +198,24 @@
                 }
             });
 
-            // Обновляем шкалы
             const cardioPercent = Math.min((cardioMinutes / 150) * 100, 100);
-            document.getElementById('cardio-text').innerText = `${cardioMinutes} / 150 мин`;
+            document.getElementById('cardio-text').innerText = `${cardioMinutes} / 150 РјРёРЅ`;
             document.getElementById('cardio-bar').style.width = `${cardioPercent}%`;
 
             const strengthPercent = Math.min((strengthCount / 2) * 100, 100);
-            document.getElementById('strength-text').innerText = `${strengthCount} / 2 тренировки`;
+            document.getElementById('strength-text').innerText = `${strengthCount} / 2 С‚СЂРµРЅРёСЂРѕРІРєРё`;
             document.getElementById('strength-bar').style.width = `${strengthPercent}%`;
 
-            // 4. ОТРИСОВКА СПИСКА (первые 5 элементов из отсортированного массива)
             const listContainer = document.getElementById('workout-list');
             listContainer.innerHTML = '';
             
             data.slice(0, 5).forEach(row => {
-                const date = row['Дата'] || 'Без даты';
-                const type = row['Тип тренировки'] || 'Активность';
-                const distance = row['Дистанция (км)'] ? `${row['Дистанция (км)']} км` : '';
-                const duration = row['Длительность (мин)'] ? `${row['Длительность (мин)']} мин` : '';
+                const date = row['Р”Р°С‚Р°'] || 'Р‘РµР· РґР°С‚С‹';
+                const type = row['РўРёРї С‚СЂРµРЅРёСЂРѕРІРєРё'] || 'РђРєС‚РёРІРЅРѕСЃС‚СЊ';
+                const distance = row['Р”РёСЃС‚Р°РЅС†РёСЏ (РєРј)'] ? `${row['Р”РёСЃС‚Р°РЅС†РёСЏ (РєРј)']} РєРј` : '';
+                const duration = row['Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (РјРёРЅ)'] ? `${row['Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (РјРёРЅ)']} РјРёРЅ` : '';
                 
-                const details = [distance, duration].filter(Boolean).join(' • ');
+                const details = [distance, duration].filter(Boolean).join(' вЂў ');
 
                 const div = document.createElement('div');
                 div.className = 'workout-item';
@@ -187,6 +231,7 @@
         }
 
         fetchData();
+        setInterval(fetchData, 30000);
     </script>
 </body>
 </html>
